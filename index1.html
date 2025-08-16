@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Web lọc dàn số theo tỷ lệ / số dàn</title>
+  <style>
+    :root {
+      --bg: #0b0d10; --card:#12161c; --muted:#9aa4b2; --text:#e8edf3;
+      --accent:#5cc8ff; --accent2:#8bffbd; --danger:#ff6b6b;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial; }
+    .wrap { max-width: 1100px; margin: 24px auto; padding: 0 16px; }
+    h1 { font-size: 22px; margin: 0 0 16px; font-weight: 700; }
+    .grid { display: grid; gap: 16px; grid-template-columns: 1.2fr 1fr; }
+    .card { background: var(--card); border: 1px solid #1f2630; border-radius: 14px; padding: 16px; box-shadow: 0 6px 24px rgba(0,0,0,.25); }
+    label { display: block; color: var(--muted); font-size: 12px; margin-bottom: 6px; }
+    textarea { width: 100%; min-height: 240px; resize: vertical; background: #0f1319; border: 1px solid #1f2630; border-radius: 12px; padding: 12px; color: var(--text); font: 13px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    .row > * { flex: 1 1 auto; }
+    input[type="number"], input[type="text"] { width: 100%; background: #0f1319; border: 1px solid #1f2630; border-radius: 10px; padding: 8px 10px; color: var(--text); font-size: 14px; }
+    input[type="range"] { width: 100%; }
+    .small { font-size: 12px; color: var(--muted); }
+    .btn { appearance: none; border: 1px solid #273041; background: linear-gradient(180deg,#18202a,#12161c); color: var(--text); padding: 10px 14px; border-radius: 12px; font-weight: 600; cursor: pointer; }
+    .btn:hover { border-color: #364258; }
+    .btn.primary { border-color: #1c6fad; background: linear-gradient(180deg,#1a68a3,#144a74); }
+    .btn.ghost { background: transparent; border-color: #273041; }
+    .pill { display:inline-block; padding:4px 8px; border-radius:20px; background:#0f1319; border:1px solid #273041; color:#cbd5e1; font-size:12px; }
+    .muted { color: var(--muted); }
+    .stack { display:flex; flex-direction:column; gap:10px; }
+    .stats { display:grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap:10px; }
+    .kpi { background:#0f1319; border:1px solid #273041; border-radius:12px; padding:10px; text-align:center; }
+    .kpi .v { font-weight:800; font-size:20px; }
+    .flex { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+    .outbox { background:#0f1319; border:1px solid #273041; border-radius:12px; padding:10px; }
+    .outbox pre { margin:0; white-space: pre-wrap; word-wrap: break-word; }
+    table { width: 100%; border-collapse: collapse; background:#0f1319; border:1px solid #273041; border-radius:12px; overflow:hidden; }
+    th, td { padding: 8px 10px; border-bottom: 1px solid #1f2630; text-align: left; font-size: 13px; }
+    th { position: sticky; top: 0; background:#141a21; z-index:1; }
+    .right { text-align:right; }
+    .ok { color: var(--accent2); font-weight:700; }
+    .warn { color: var(--danger); font-weight:700; }
+    .footer { margin-top: 16px; font-size: 12px; color: var(--muted); }
+    @media (max-width: 920px) { .grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Trộn dàn & lọc theo tỷ lệ xuất hiện (00–99)</h1>
+
+    <div class="grid">
+      <section class="card stack">
+        <div>
+          <label><b>Dán dàn số</b> (mỗi dàn một dòng • các số cách nhau bằng dấu phẩy).<br>
+            Ví dụ một dàn: <span class="pill">16, 83, 06, 98, 75, 41, 04, 95, …</span>
+          </label>
+          <textarea id="input" placeholder="dàn 1: 16, 83, 06, 98, 75, ...\ndàn 2: 00, 01, 02, ...\n...\nHoặc ngăn cách dàn bằng dấu chấm '.'"></textarea>
+          <div class="small">Web tự bỏ tiền tố như “dàn 1: …”, tự chuẩn hoá 2 chữ số (00–99), và loại trùng trong cùng một dàn.</div>
+        </div>
+
+        <div class="row">
+          <div class="stack">
+            <label>Ngưỡng % (≥ floor(n × %))</label>
+            <input id="thr" type="range" min="0" max="1" step="0.01" value="0.9" />
+            <div class="flex">
+              <div class="pill"><span id="thrPct">90%</span></div>
+              <div class="small">Kéo để đổi 70/80/85/90%…</div>
+            </div>
+          </div>
+          <div class="stack">
+            <label>Hoặc đặt theo số dàn tối thiểu (ưu tiên nếu nhập)</label>
+            <input id="minTimes" type="number" min="0" step="1" placeholder="vd 16 (nếu có 20 dàn để lấy ≥80%)" />
+            <div class="small">Để trống nếu dùng theo %.</div>
+          </div>
+        </div>
+
+        <div class="row">
+          <button class="btn primary" id="run">Tính dàn</button>
+          <button class="btn" id="copy">Copy dàn kết quả</button>
+          <button class="btn ghost" id="csv">Tải CSV</button>
+        </div>
+      </section>
+
+      <section class="card stack">
+        <div class="stats">
+          <div class="kpi"><div class="small">Số dàn nhận</div><div class="v" id="kpiN">0</div></div>
+          <div class="kpi"><div class="small">Ngưỡng (số lần)</div><div class="v" id="kpiMin">0</div></div>
+          <div class="kpi"><div class="small">Số đạt ngưỡng</div><div class="v" id="kpiHit">0</div></div>
+          <div class="kpi"><div class="small">Tỉ lệ trung vị</div><div class="v" id="kpiMed">–</div></div>
+        </div>
+        <div class=\"outbox\">
+          <div class=\"small\">Dàn kết quả <span class=\"pill\" id=\"outCount\">0 số<\/span>:\/div>
+          <pre id=\"out\">(chưa có)<\/pre>
+        <\/div>
+        <div class="footer">Gợi ý: Nếu muốn “cho phép tối đa b dàn xấu”, hãy đặt ngưỡng = <b>n − b</b> ở ô “số dàn tối thiểu”. Ví dụ n=20, b=3 ⇒ 17.</div>
+      </section>
+    </div>
+
+    <section class="card" style="margin-top:16px;">
+      <div class="row" style="justify-content:space-between; align-items:baseline;">
+        <h2 style="margin:0; font-size:18px;">Bảng tần suất (00–99)</h2>
+        <span class="small">Chỉ hiển thị các số xuất hiện ≥ 1 lần.</span>
+      </div>
+      <div style="max-height: 420px; overflow:auto; margin-top:8px;">
+        <table id="tbl">
+          <thead>
+            <tr>
+              <th>Số</th>
+              <th class="right">Số lần</th>
+              <th class="right">Tỉ lệ</th>
+              <th class="right">Đạt ngưỡng</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const $ = (sel) => document.querySelector(sel);
+    const input = $('#input');
+    const thr = $('#thr');
+    const thrPct = $('#thrPct');
+    const minTimesEl = $('#minTimes');
+    const runBtn = $('#run');
+    const copyBtn = $('#copy');
+    const csvBtn = $('#csv');
+
+    const kpiN = $('#kpiN');
+    const kpiMin = $('#kpiMin');
+    const kpiHit = $('#kpiHit');
+    const kpiMed = $('#kpiMed');
+    const out = $('#out');
+    const tblBody = document.querySelector('#tbl tbody');
+
+    thr.addEventListener('input', () => thrPct.textContent = Math.round(thr.value * 100) + '%');
+
+    function pad2(n){ n = Number(n); if (isNaN(n)) return null; if (n<0 || n>99) return null; return n.toString().padStart(2,'0'); }
+
+    function splitDans(raw){
+      // Chuẩn hoá ngăn cách dàn: chấm hoặc xuống dòng
+      let t = raw.replace(/\r\n?/g, '\n');
+      t = t.replace(/[。．]/g, '.');
+      t = t.replace(/\.+/g, '.'); // gộp nhiều dấu chấm
+      t = t.replace(/\.(?=\S)/g, '. ');
+      // Thử cắt theo dấu chấm hoặc xuống dòng
+      let chunks = t.split(/\n+|\.+/).map(s => s.trim()).filter(Boolean);
+      if (chunks.length === 0 && raw.trim().length) chunks = [raw.trim()];
+      return chunks;
+    }
+
+    function cleanLine(line){
+      // Bỏ tiền tố "dàn 1:"; "dan 2:"; "dàn số:" ...
+      line = line.replace(/^\s*d[àa]n\s*\d+\s*:\s*/i, '');
+      line = line.replace(/^\s*d[àa]n\s*:*/i, '');
+      // Giữ lại số và dấu phẩy
+      return line;
+    }
+
+    function parse(raw){
+      const chunks = splitDans(raw);
+      const sets = [];
+      for (const ch of chunks){
+        const s = new Set();
+        const line = cleanLine(ch);
+        const tokens = line.split(',');
+        for (let tok of tokens){
+          tok = tok.trim();
+          if (!tok) continue;
+          // bóc tách khi người dùng viết liền số bằng khoảng trắng: "16 83 06" => tách thêm
+          if (/\s+/.test(tok) && !tok.includes(',')) {
+            for (const part of tok.split(/\s+/)) { const v = pad2(part); if (v!==null) s.add(v); }
+            continue;
+          }
+          // giữ 2 chữ số
+          const v = pad2(tok);
+          if (v!==null) s.add(v);
+        }
+        if (s.size>0) sets.push([...s]);
+      }
+      return sets;
+    }
+
+    function analyze(sets, minTimes){
+      const n = sets.length;
+      const freq = new Map();
+      for (const arr of sets){
+        for (const v of arr){ freq.set(v, (freq.get(v)||0)+1); }
+      }
+      const rows = [];
+      for (let i=0;i<100;i++){
+        const v = pad2(i);
+        const c = freq.get(v)||0;
+        if (c>0){
+          rows.push({v, c, p: n? c/n : 0, hit: c>=minTimes});
+        }
+      }
+      rows.sort((a,b)=> Number(a.v)-Number(b.v));
+      const result = rows.filter(r=>r.hit).map(r=>r.v);
+
+      // median of proportions for displayed rows
+      const ps = rows.map(r=>r.p).sort((a,b)=>a-b);
+      const med = ps.length? (ps.length%2? ps[(ps.length-1)/2] : (ps[ps.length/2-1]+ps[ps.length/2])/2) : 0;
+      return { n, rows, result, med };
+    }
+
+    function render({n, rows, result, med}, minTimes){
+      kpiN.textContent = n;
+      kpiMin.textContent = minTimes;
+      kpiHit.textContent = result.length;
+      kpiMed.textContent = n? Math.round(med*10000)/100 + '%' : '–';
+
+      out.textContent = result.length? result.join(', ') : '(không có số đạt ngưỡng)';
+      const outCountEl = document.getElementById('outCount');
+      if (outCountEl) outCountEl.textContent = result.length + ' số';
+
+      // table
+      tblBody.innerHTML = '';
+      for (const r of rows){
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${r.v}</td>
+                        <td class=\"right\">${r.c}</td>
+                        <td class=\"right\">${(r.p*100).toFixed(2)}%<\/td>
+                        <td class=\"right\">${r.hit? '<span class=\\"ok\\">✓<\/span>' : '<span class=\\"warn\\">–<\/span>'}<\/td>`;
+        tblBody.appendChild(tr);
+      }
+    }</td>
+                        <td class="right">${r.c}</td>
+                        <td class="right">${(r.p*100).toFixed(2)}%</td>
+                        <td class="right">${r.hit? '<span class="ok">✓</span>' : '<span class="warn">–</span>'}</td>`;
+        tblBody.appendChild(tr);
+      }
+    }
+
+    function toCSV({n, rows, result, minTimes}){
+      const header = ['So','SoLan','TiLe','DatNguong'];
+      const lines = [header.join(',')];
+      for (const r of rows){
+        lines.push([r.v, r.c, (n? (r.c/n) : 0).toFixed(4), r.c>=minTimes?1:0].join(','));
+      }
+      return lines.join('\n');
+    }
+
+    function run(){
+      const sets = parse(input.value);
+      const n = sets.length;
+      const thrVal = Number(thr.value);
+      let minTimes = Number(minTimesEl.value);
+      if (!Number.isInteger(minTimes) || minTimes<0) {
+        minTimes = Math.floor(n * thrVal);
+      }
+      const res = analyze(sets, minTimes);
+      render(res, minTimes);
+      // cache last state for CSV/copy
+      run.last = { sets, minTimes, ...res };
+    }
+
+    runBtn.addEventListener('click', run);
+    thr.addEventListener('change', run);
+    minTimesEl.addEventListener('change', run);
+
+    copyBtn.addEventListener('click', () => {
+      const state = run.last; if (!state) return;
+      const txt = state.result.join(', ');
+      navigator.clipboard.writeText(txt).then(()=>{
+        copyBtn.textContent = 'Đã copy';
+        setTimeout(()=>copyBtn.textContent='Copy dàn kết quả',1000);
+      });
+    });
+
+    csvBtn.addEventListener('click', () => {
+      const state = run.last; if (!state) return;
+      const csv = toCSV({ n: state.n, rows: state.rows, result: state.result, minTimes: state.minTimes });
+      const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'tan_suat_dan.csv';
+      document.body.appendChild(a); a.click();
+      setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 0);
+    });
+
+    // Demo sample prefill (you có thể xoá)
+    input.value = `16, 83, 06, 98, 75, 41, 04, 95, 13, 47, 07, 48, 62, 82, 54, 89, 26, 78, 81, 97, 43, 52, 63, 76, 28, 03, 65, 27, 71, 67, 40, 94, 58, 17, 14, 09, 29, 01, 36, 72, 59, 64, 25, 39, 15, 21, 79, 46, 74, 86, 91, 99, 51, 45, 93, 23, 20, 69, 50, 37, 60, 35, 24, 57, 34, 05, 66, 42, 61, 30, 22, 00, 33, 12, 70, 84, 85, 19, 80, 31, 32\n` +
+                  `00, 01, 02, 03, 04, 05, 06, 07, 09, 10, 11, 12, 13, 14, 15, 16, 18, 20, 22, 24, 25, 26, 27, 29, 30, 31, 32, 33, 34, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 50, 51, 52, 53, 54, 56, 57, 58, 59, 60, 61, 62, 64, 65, 67, 68, 69, 70, 72, 73, 74, 77, 78, 79, 80, 81, 82, 83, 84, 86, 87, 88, 89, 91, 93, 94, 95, 96, 97, 99`;
+    thr.dispatchEvent(new Event('input'));
+  </script>
+</body>
+</html>
