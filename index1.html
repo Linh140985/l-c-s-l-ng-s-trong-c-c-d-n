@@ -52,7 +52,7 @@
     <div class="grid">
       <section class="card stack">
         <div>
-          <label><b>Dán dàn số</b> (mỗi dàn một dòng • các số cách nhau bằng dấu phẩy).<br>
+          <label><b>Dán dàn số</b> (mỗi dàn một dòng • các số cách nhau bằng dấu phẩy hoặc khoảng trắng).<br>
             Ví dụ một dàn: <span class="pill">16, 83, 06, 98, 75, 41, 04, 95, …</span>
           </label>
           <textarea id="input" placeholder="dàn 1: 16, 83, 06, 98, 75, ...\ndàn 2: 00, 01, 02, ...\n...\nHoặc ngăn cách dàn bằng dấu chấm '.'"></textarea>
@@ -89,10 +89,10 @@
           <div class="kpi"><div class="small">Số đạt ngưỡng</div><div class="v" id="kpiHit">0</div></div>
           <div class="kpi"><div class="small">Tỉ lệ trung vị</div><div class="v" id="kpiMed">–</div></div>
         </div>
-        <div class=\"outbox\">
-          <div class=\"small\">Dàn kết quả <span class=\"pill\" id=\"outCount\">0 số<\/span>:\/div>
-          <pre id=\"out\">(chưa có)<\/pre>
-        <\/div>
+        <div class="outbox">
+          <div class="small">Dàn kết quả <span class="pill" id="outCount">0 số</span>:</div>
+          <pre id="out">(chưa có)</pre>
+        </div>
         <div class="footer">Gợi ý: Nếu muốn “cho phép tối đa b dàn xấu”, hãy đặt ngưỡng = <b>n − b</b> ở ô “số dàn tối thiểu”. Ví dụ n=20, b=3 ⇒ 17.</div>
       </section>
     </div>
@@ -135,27 +135,24 @@
     const out = $('#out');
     const tblBody = document.querySelector('#tbl tbody');
 
-    thr.addEventListener('input', () => thrPct.textContent = Math.round(thr.value * 100) + '%');
+    thr.addEventListener('input', () => { 
+      thrPct.textContent = Math.round(thr.value * 100) + '%'; 
+      run(); 
+    });
 
     function pad2(n){ n = Number(n); if (isNaN(n)) return null; if (n<0 || n>99) return null; return n.toString().padStart(2,'0'); }
 
     function splitDans(raw){
-      // Chuẩn hoá ngăn cách dàn: chấm hoặc xuống dòng
-      let t = raw.replace(/\r\n?/g, '\n');
-      t = t.replace(/[。．]/g, '.');
-      t = t.replace(/\.+/g, '.'); // gộp nhiều dấu chấm
-      t = t.replace(/\.(?=\S)/g, '. ');
-      // Thử cắt theo dấu chấm hoặc xuống dòng
-      let chunks = t.split(/\n+|\.+/).map(s => s.trim()).filter(Boolean);
-      if (chunks.length === 0 && raw.trim().length) chunks = [raw.trim()];
+      let t = raw.replace(/\r\n?/g, '\n').replace(/[。．]/g, '.');
+      t = t.replace(/\bd[àa]n\s*\d+\s*:/ig, '\n');
+      t = t.replace(/\.+/g, '.').replace(/\./g, '\n');
+      const chunks = t.split(/\n+/).map(s => s.trim()).filter(Boolean);
       return chunks;
     }
 
     function cleanLine(line){
-      // Bỏ tiền tố "dàn 1:"; "dan 2:"; "dàn số:" ...
       line = line.replace(/^\s*d[àa]n\s*\d+\s*:\s*/i, '');
       line = line.replace(/^\s*d[àa]n\s*:*/i, '');
-      // Giữ lại số và dấu phẩy
       return line;
     }
 
@@ -165,16 +162,10 @@
       for (const ch of chunks){
         const s = new Set();
         const line = cleanLine(ch);
-        const tokens = line.split(',');
+        const tokens = line.split(/[,\s]+/);
         for (let tok of tokens){
           tok = tok.trim();
           if (!tok) continue;
-          // bóc tách khi người dùng viết liền số bằng khoảng trắng: "16 83 06" => tách thêm
-          if (/\s+/.test(tok) && !tok.includes(',')) {
-            for (const part of tok.split(/\s+/)) { const v = pad2(part); if (v!==null) s.add(v); }
-            continue;
-          }
-          // giữ 2 chữ số
           const v = pad2(tok);
           if (v!==null) s.add(v);
         }
@@ -199,8 +190,6 @@
       }
       rows.sort((a,b)=> Number(a.v)-Number(b.v));
       const result = rows.filter(r=>r.hit).map(r=>r.v);
-
-      // median of proportions for displayed rows
       const ps = rows.map(r=>r.p).sort((a,b)=>a-b);
       const med = ps.length? (ps.length%2? ps[(ps.length-1)/2] : (ps[ps.length/2-1]+ps[ps.length/2])/2) : 0;
       return { n, rows, result, med };
@@ -216,20 +205,13 @@
       const outCountEl = document.getElementById('outCount');
       if (outCountEl) outCountEl.textContent = result.length + ' số';
 
-      // table
       tblBody.innerHTML = '';
       for (const r of rows){
         const tr = document.createElement('tr');
         tr.innerHTML = `<td>${r.v}</td>
-                        <td class=\"right\">${r.c}</td>
-                        <td class=\"right\">${(r.p*100).toFixed(2)}%<\/td>
-                        <td class=\"right\">${r.hit? '<span class=\\"ok\\">✓<\/span>' : '<span class=\\"warn\\">–<\/span>'}<\/td>`;
-        tblBody.appendChild(tr);
-      }
-    }</td>
                         <td class="right">${r.c}</td>
-                        <td class="right">${(r.p*100).toFixed(2)}%</td>
-                        <td class="right">${r.hit? '<span class="ok">✓</span>' : '<span class="warn">–</span>'}</td>`;
+                        <td class="right">${(r.p*100).toFixed(2)}%<\/td>
+                        <td class="right">${r.hit? '<span class=\\"ok\\">✓<\/span>' : '<span class=\\"warn\\">–<\/span>'}<\/td>`;
         tblBody.appendChild(tr);
       }
     }
@@ -253,7 +235,6 @@
       }
       const res = analyze(sets, minTimes);
       render(res, minTimes);
-      // cache last state for CSV/copy
       run.last = { sets, minTimes, ...res };
     }
 
@@ -281,10 +262,7 @@
       setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 0);
     });
 
-    // Demo sample prefill (you có thể xoá)
-    input.value = `16, 83, 06, 98, 75, 41, 04, 95, 13, 47, 07, 48, 62, 82, 54, 89, 26, 78, 81, 97, 43, 52, 63, 76, 28, 03, 65, 27, 71, 67, 40, 94, 58, 17, 14, 09, 29, 01, 36, 72, 59, 64, 25, 39, 15, 21, 79, 46, 74, 86, 91, 99, 51, 45, 93, 23, 20, 69, 50, 37, 60, 35, 24, 57, 34, 05, 66, 42, 61, 30, 22, 00, 33, 12, 70, 84, 85, 19, 80, 31, 32\n` +
-                  `00, 01, 02, 03, 04, 05, 06, 07, 09, 10, 11, 12, 13, 14, 15, 16, 18, 20, 22, 24, 25, 26, 27, 29, 30, 31, 32, 33, 34, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 50, 51, 52, 53, 54, 56, 57, 58, 59, 60, 61, 62, 64, 65, 67, 68, 69, 70, 72, 73, 74, 77, 78, 79, 80, 81, 82, 83, 84, 86, 87, 88, 89, 91, 93, 94, 95, 96, 97, 99`;
-    thr.dispatchEvent(new Event('input'));
+    document.addEventListener('DOMContentLoaded', run);
   </script>
 </body>
 </html>
